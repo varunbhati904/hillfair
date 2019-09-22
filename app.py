@@ -1,4 +1,5 @@
 from flask import Flask
+import request
 from functools import wraps
 import json, time
 from datetime import datetime
@@ -11,48 +12,43 @@ app = Flask(__name__)
 global cursor
 
 # DECORATOR
-# declares json endpoint given endpoint string
+# declares json app.route given app.route string
 # return simple python option1bject in the function you write
 # example:
-# @endpoint("/endpoint_string")
+# @app.route("/app.route_string")
 # def function():
 #     result = {...}
 
-def endpoint(endpoint):
-    def endpoint_decorator(func):
-        @wraps(func)
-        def decorated_func(*args, **kwargs):
-            # Connect to the database
-            global cursor
-            connection = pymysql.connect(host='52.41.147.246',
-                                         user='quizuser',
-                                         password='quizadder',
-                                         db='hillffair',
+
+
+
+connection = pymysql.connect(host='52.41.147.246',
+                                         user='hillffair',
+                                         password='1qaz2wsx',
+                                         db='Hillffair2k18',
                                          cursorclass=pymysql.cursors.DictCursor)
-            cursor = connection.cursor()
+cursor = connection.cursor()
 
-            if (connection):
-                result = func(*args, **kwargs)
-                connection.commit()
-                connection.close()
-                return json.dumps(result), 200, {'Content-Type': 'text/json'}
-            else:
-                return "{'error':'Error: no connection to database'}", 500, {'Content-Type': 'text/json'}
-        return app.route(endpoint)(decorated_func)
-    return endpoint_decorator
+@app.route('/')
+def hello():
+    if request.method=='GET':
+        return "hello"
+    else:
+        return "Hiiiii"
 
-
-
-@endpoint('/postwall/<rollno>/<imageurl>')
+@app.route('/postwall/<rollno>/<imageurl>')
 # Sample Response: [{"id": 1, "name": "Daniyaal Khan", "rollno": "17mi561", "likes": 2}]
 def postwall(rollno,imageurl):
-    imageurl=base64.b64decode(imageurl)
+
+    imageurl=imageurl
     #print("INSERT into wall values(NULL,'"+rollno+"','"+imageurl+"', "+str(int(time.time()+19800))+")")
-    query = cursor.execute("INSERT into wall values(NULL,'"+rollno+"','"+imageurl+"', "+str(int(time.time()+19800))+")")
+    query = cursor.execute("INSERT into Wall values(NULL,'"+rollno+"','"+imageurl+"', "+str(int(time.time()+19800))+")")
+    cursor.execute(query);
+    connection.commit();
     return {'status': 'success'}
 
 
-@endpoint('/getwall/<int:start>/<user_id>')
+@app.route('/getwall/<int:start>/<user_id>')
 # Sample Response: [{"id": 1, "name": "Daniyaal Khan", "rollno": "17mi561", "likes": 2}]
 def getwall(start,user_id):
     query = cursor.execute("SELECT w.id as id, p.name as name, p.id as rollno, (SELECT COUNT(*) FROM likes WHERE post_id=w.id) AS likes, (Select count(*) from likes where post_id=w.id AND profile_id='"+user_id+"') as liked, w.image_url, p.image_url AS profile_pic  FROM wall as w, profile as p WHERE p.id=w.profile_id ORDER BY w.time DESC")
@@ -60,7 +56,7 @@ def getwall(start,user_id):
     return result
 
 
-@endpoint('/getlike/<int:image_id>')
+@app.route('/getlike/<int:image_id>')
 # Sample Response: {"likes": 2}
 def getlike(image_id):
     query = cursor.execute("SELECT COUNT(*) AS likes FROM likes WHERE post_id="+str(image_id))
@@ -68,7 +64,7 @@ def getlike(image_id):
     return result
 
 
-@endpoint('/postlike/<int:image_id>/<user_id>/<int:action>')
+@app.route('/postlike/<int:image_id>/<user_id>/<int:action>')
 def postlike(image_id, user_id,action):
         if action==1:
             query = cursor.execute("INSERT INTO likes VALUES(NULL, '"+user_id+"', "+str(image_id)+")")
@@ -83,7 +79,7 @@ def postlike(image_id, user_id,action):
             else:
                 return {'status': 'fail'}
 
-@endpoint('/getleaderboard')
+@app.route('/getleaderboard')
 # Sample Response: [{"id": "17mi561", "name": "Daniyaal Khan", "score": 60.0}, {"id": "17mi560", "name": "Check", "score": 10.0}]
 def getleaderboard():
     #print("SELECT p.id, p.name, p.image_url, ((SELECT SUM(amount) FROM score WHERE profile_id=p.id AND time>=(UNIX_timestamp(timestamp(current_date))+19800)+(SELECT SUM(referal_score) FROM score WHERE profile_id=p.id)) as score FROM profile AS p ORDER BY score DESC LIMIT "+str(startfrom)+", "+str(startfrom+10))
@@ -92,7 +88,7 @@ def getleaderboard():
     return result
 
 
-@endpoint('/postpoint/<rollno>/<int:points>')
+@app.route('/postpoint/<rollno>/<int:points>')
 def postpoint(rollno, points):
     query = cursor.execute("INSERT INTO score VALUES(NULL, '"+rollno+"', "+str(points)+", "+str(time.time()+19800)+",0.0)")
     if query:
@@ -100,13 +96,13 @@ def postpoint(rollno, points):
     else:
         return {'status': 'fail'}
 
-@endpoint('/getpoint/<rollno>')
+@app.route('/getpoint/<rollno>')
 def getpoint(rollno):
     query = cursor.execute("SELECT SUM(amount) AS points FROM score WHERE profile_id = '"+rollno+"' AND time>=(UNIX_timestamp(timestamp(current_date))+19800)")
     result = cursor.fetchone()
     return result
 
-@endpoint('/getschedule')
+@app.route('/getschedule')
 def getschedule():
     query = cursor.execute("SELECT name as club_name, event_id,event_name,event_time,club_logo FROM events,clubs WHERE events.club_id=clubs.id")
     result = cursor.fetchall()
@@ -114,7 +110,7 @@ def getschedule():
         #x["event_time"] = x["event_time"].timestamp()
     return result
 
-@endpoint('/posteventlike/<user_id>/<event_id>')
+@app.route('/posteventlike/<user_id>/<event_id>')
 def posteventlike(user_id, event_id):
     userCheck = cursor.execute("SELECT * from profile where id = %s", (user_id))
     if userCheck == 0:
@@ -129,25 +125,25 @@ def posteventlike(user_id, event_id):
     else:
         return {'status': 'Already Liked'}
 
-@endpoint('/geteventlike/<event_id>')
+@app.route('/geteventlike/<event_id>')
 def geteventlike(event_id):
     query = cursor.execute("SELECT COUNT(*) from event_likes where event_id = %s", event_id)
     result = cursor.fetchone()
     return {'likes': result["COUNT(*)"]}
 
-@endpoint('/getclubs')
+@app.route('/getclubs')
 def getclubs():
     query = cursor.execute("SELECT * FROM clubs")
     result = cursor.fetchall()
     return result
 
-@endpoint('/getcoreteam')
+@app.route('/getcoreteam')
 def getcoreteam():
     query = cursor.execute("SELECT * FROM coreteam")
     result = cursor.fetchall()
     return result
 
-@endpoint('/getsponsor')
+@app.route('/getsponsor')
 def getsponsor():
     query = cursor.execute("SELECT * FROM sponsors")
     result = cursor.fetchall()
@@ -156,7 +152,7 @@ def getsponsor():
 winarray = list(range(1,91))
 random.shuffle(winarray)
 
-@endpoint('/gettambolanumber')
+@app.route('/gettambolanumber')
 def gettambolanumber():
     time = int(datetime(2018, datetime.now().month, datetime.now().day, 22, 0).timestamp())
     current = int(datetime.now().timestamp())
@@ -166,11 +162,11 @@ def gettambolanumber():
     else:
         return {'status': 'Unavailable'}
 
-@endpoint('/posttambolaresult')
+@app.route('/posttambolaresult')
 def posttambolaresult():
     return 'Hello, World!'
 
-@endpoint('/getquiz')
+@app.route('/getquiz')
 def getquiz():
     # returns 10 random questions from category (day)%num_cat
     NUM_CATEGORIES = 7
@@ -182,7 +178,7 @@ def getquiz():
     random.shuffle(result)
     return {'questions':result[:10]}
 
-@endpoint('/postprofile/<name>/<rollno>/<phone_no>/<referal>/<imageurl>')
+@app.route('/postprofile/<name>/<rollno>/<phone_no>/<referal>/<imageurl>')
 def postprofile(name,rollno,phone_no,referal,imageurl):
     referal=base64.b64decode(referal)
     imageurl=base64.b64decode(imageurl)
@@ -209,7 +205,7 @@ def postprofile(name,rollno,phone_no,referal,imageurl):
         #query = cursor.execute("INSERT into profile VALUES('"+rollno+"',"+str(phone_no)+",'"+name+"',NULL, NULL)")
     return {'status': 'success'}
 
-@endpoint('/checkuser/<phone_no>')
+@app.route('/checkuser/<phone_no>')
 def checkuser(phone_no):
     query = cursor.execute("SELECT COUNT(*) as user_count from profile where phone="+phone_no)
     result = cursor.fetchone()
@@ -222,7 +218,7 @@ def checkuser(phone_no):
         return {'exists': False, 'data': {}}
 
 
-@endpoint('/getprofile/<user_id>')
+@app.route('/getprofile/<user_id>')
 def getprofile(user_id):
     #print("SELECT profile.name as name, profile.id as rollno, profile.image_url as profile_pic, (SELECT SUM(amount) FROM score WHERE profile_id=p.id AND time>=UNIX_timestamp(timestamp(current_date)+19800)) as score FROM profile WHERE profile.id ='"+user_id+"'")
     query = cursor.execute("SELECT profile.name as name, profile.id as rollno, profile.image_url as profile_pic, (SELECT SUM(referal_score) FROM score WHERE score.profile_id=rollno) as score FROM profile WHERE profile.id ='"+user_id+"'")
@@ -230,7 +226,7 @@ def getprofile(user_id):
     # print(result1)
     return result
 
-@endpoint('/deletewallpost/<int:image_id>')
+@app.route('/deletewallpost/<int:image_id>')
 def deletewallpost(image_id):
     query = cursor.execute("DELETE from wall where wall.id='"+str(image_id)+"'")
     if query:
@@ -238,7 +234,7 @@ def deletewallpost(image_id):
     else:
         return {'status': 'fail'}
 
-@endpoint('/postgamestatus/<user_id>')
+@app.route('/postgamestatus/<user_id>')
 def postgamestatus(user_id):
     query = cursor.execute("INSERT into game_status values ('"+user_id+"',0,0,0)")
     if query:
@@ -246,13 +242,13 @@ def postgamestatus(user_id):
     else:
         return {'status': 'failure'}
 
-@endpoint('/gettambolastatus/<user_id>')
+@app.route('/gettambolastatus/<user_id>')
 def gettambolastatus(user_id):
     query = cursor.execute("SELECT FORMAT(SUM(tambola_status),0) as tambolastatus from game_status where user_id='"+user_id+"'")
     result = cursor.fetchone()
     return result
 
-@endpoint('/posttambolastatus/<user_id>')
+@app.route('/posttambolastatus/<user_id>')
 def posttambolastatus(user_id):
     query = cursor.execute("INSERT into game_status values ('"+user_id+"',0,1,0)")
     if query:
@@ -260,14 +256,14 @@ def posttambolastatus(user_id):
     else:
         return {'status': 'failure'}
 
-@endpoint('/getquizstatus/<user_id>')
+@app.route('/getquizstatus/<user_id>')
 def getquizstatus(user_id):
     query = cursor.execute("SELECT FORMAT(SUM(quiz_status),0) as quizstatus from game_status where user_id='"+user_id+"'")
     # print("SELECT FORMAT(SUM(quiz_status),0) as quizstatus from game_status where user_id='"+user_id+"'")
     result = cursor.fetchone()
     return result
 
-@endpoint('/postquizstatus/<user_id>')
+@app.route('/postquizstatus/<user_id>')
 def postquizstatus(user_id):
     query = cursor.execute("INSERT into game_status values ('"+user_id+"',1,0,0)")
     if query:
@@ -275,13 +271,13 @@ def postquizstatus(user_id):
     else:
         return {'status': 'failure'}
 
-@endpoint('/getroulettecount/<user_id>')
+@app.route('/getroulettecount/<user_id>')
 def getroulettecount(user_id):
     query = cursor.execute("SELECT FORMAT(SUM(roulette_status),0) as roulettecount from game_status where user_id='"+user_idx+"'")
     result = cursor.fetchone()
     return result
 
-@endpoint('/postroulettecount/<user_id>')
+@app.route('/postroulettecount/<user_id>')
 def postroulettecount(user_id):
     query = cursor.execute("INSERT into game_status values ('"+user_id+"',0,0,1)")
     if query:
@@ -292,4 +288,4 @@ def postroulettecount(user_id):
 
 
 if __name__ == '__main__':
-    app.run(debug = True, host='0.0.0.0')
+    app.run(debug = True)
